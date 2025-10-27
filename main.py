@@ -7,6 +7,10 @@ import os
 
 from rpc import DiscordRPC
 
+if config.METADATA_PROVIDER.upper() == "SPOTIFY":
+    import spotipy
+    from spotipy.oauth2 import SpotifyClientCredentials
+
 
 class PersistentStore:
     data = {}
@@ -68,6 +72,21 @@ class CurrentTrack:
     ends_at = None
 
     image_url = None
+
+    spotify_client = None
+    if config.METADATA_PROVIDER.upper() == "SPOTIFY":
+        try:
+            if not config.SPOTIFY_CLIENTID or not config.SPOTIFY_CLIENTSECRET:
+                print("Error: SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set")
+            else:
+                auth_manager = SpotifyClientCredentials(
+                    client_id=config.SPOTIFY_CLIENTID,
+                    client_secret=config.SPOTIFY_CLIENTSECRET
+                )
+                spotify_client = spotipy.Spotify(auth_manager=auth_manager)
+                print("Spotify metadata provider initialized")
+        except Exception as e:
+            print(f"Failed to initialize Spotify client: {e}")
 
     def _filter_nowplaying(entry):
         return [
@@ -181,17 +200,80 @@ class CurrentTrack:
 
             PersistentStore.set(cls.album_id, image_url)
 
+
+    @classmethod
+    def _grab_spotify(cls):
+        if not cls.spotify_client:
+            print("Spotify client not initialized")
+            return
+
+        if PersistentStore.has(cls.album_id):
+            cls.set(image_url=PersistentStore.get(cls.album_id))
+            return
+
+        try:
+            search_strategies = [
+                ("album", f"artist:{cls.artist} album:{cls.album}"),
+                ("album", f"{cls.artist} {cls.album}"),
+                ("track", f"artist:{cls.artist} track:{cls.title}"),
+                ("track", f"{cls.artist} {cls.title}"),
+                ("album", cls.album),
+            ]
+
+            image_url = None
+            
+            for search_type, query in search_strategies:
+                try:
+                    results = cls.spotify_client.search(q=query, type=search_type, limit=1)
+                    
+                    if search_type == "album" and results["albums"]["items"]:
+                        album = results["albums"]["items"][0]
+                        if album["images"]:
+                            image_url = album["images"][0]["url"]
+                            print(f"Found album art via query: {query}")
+                            break
+                    elif search_type == "track" and results["tracks"]["items"]:
+                        track = results["tracks"]["items"][0]
+                        if track["album"]["images"]:
+                            image_url = track["album"]["images"][0]["url"]
+                            print(f"Found album art via track query: {query}")
+                            break
+                except Exception as e:
+                    print(f"Search failed for query '{query}': {e}")
+                    continue
+
+            if image_url:
+                cls.set(image_url=image_url)
+                PersistentStore.set(cls.album_id, image_url)
+            else:
+                print(f"No Spotify results found after trying all strategies for: {cls.artist} - {cls.album} - {cls.title}")
+                cls.set(image_url=None)
+
+        except Exception as e:
+            print(f"Error fetching from Spotify: {e}")
+            cls.set(image_url=None)
+
     @classmethod
     def grab(cls):
         cls._grab_subsonic()
 
         if cls.artist and cls.album:
-            cls._grab_lastfm()
+            provider = config.METADATA_PROVIDER.upper()
+            
+            if provider == "SPOTIFY":
+                cls._grab_spotify()
+            elif provider == "LASTFM":
+                cls._grab_lastfm()
+            else:
+                print(f"Unknown metadata provider: {provider}. Using Last.fm as fallback.")
+                cls._grab_lastfm()
 
 
 rpc = DiscordRPC(config.DISCORD_CLIENT_ID, config.DISCORD_TOKEN)
 
 time_passed = 5
+
+print(f"Starting with metadata provider: {config.METADATA_PROVIDER}")
 
 while True:
     time.sleep(config.POLLING_TIME)
