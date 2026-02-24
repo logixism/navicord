@@ -1,5 +1,7 @@
 # Navicord
 
+# Navicord has been archived. Please use the official Navidrome plugin: https://github.com/navidrome/discord-rich-presence-plugin
+
 [![Docker Image](https://badgen.net/badge/docker/navicord?icon=docker&color=blue)](https://hub.docker.com/r/logixism/navicord/tags)
 
 A _headless_ Discord Rich Presence client for [Navidrome](https://www.navidrome.org/), with automatic album art fetching and timestamps
