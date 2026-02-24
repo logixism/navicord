@@ -1,6 +1,6 @@
 # Navicord
 
-# Navicord has been archived. Please use the official Navidrome plugin: https://github.com/navidrome/discord-rich-presence-plugin
+# Navicord has been archived. Please use the [official Navidrome plugin](https://github.com/navidrome/discord-rich-presence-plugin)
 
 [![Docker Image](https://badgen.net/badge/docker/navicord?icon=docker&color=blue)](https://hub.docker.com/r/logixism/navicord/tags)
 
